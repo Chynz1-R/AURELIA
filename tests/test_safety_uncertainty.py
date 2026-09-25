@@ -4,7 +4,7 @@ from aurelia.uncertainty import UncertaintyAnalyzer
 
 
 def test_safety_flags_privacy_sensitive_content() -> None:
-    decision = SafetyLayer().evaluate("summarize", "Contact me at person@example.com")
+    decision = SafetyLayer().evaluate("summarize", "Contact me at PERSON@EXAMPLE.COM")
     assert decision.level in {SafetyLevel.FLAG, SafetyLevel.BLOCK}
     assert any("privacy" in reason.lower() for reason in decision.reasons)
 

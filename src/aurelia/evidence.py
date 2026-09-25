@@ -20,6 +20,8 @@ class EvidenceStore:
     def add_evidence(self, item: EvidenceItem) -> None:
         if not item.id:
             raise EvidenceError("Evidence id is required")
+        if item.id in self._evidence:
+            raise EvidenceError(f"Evidence id already exists: {item.id}")
         if not item.source:
             raise EvidenceError("Evidence source is required")
         if not (0.0 <= item.reliability <= 1.0):
@@ -48,6 +50,8 @@ class EvidenceStore:
             raise EvidenceError("Claim id is required")
         if not claim.text.strip():
             raise EvidenceError("Claim text is required")
+        if claim.id in self._claims:
+            raise EvidenceError(f"Claim id already exists: {claim.id}")
         self._claims[claim.id] = replace(claim, text=claim.text.strip())
 
     def link_claim(self, claim_id: str, evidence_id: str, relationship: str) -> None:
@@ -58,10 +62,12 @@ class EvidenceStore:
         relation = relationship.strip().lower()
         if relation not in {"support", "contradict"}:
             raise EvidenceError("Relationship must be 'support' or 'contradict'")
+        if any(citation.claim_id == claim_id and citation.evidence_id == evidence_id for citation in self._citations):
+            raise EvidenceError("Duplicate claim-evidence link is not allowed")
         self._citations.append(Citation(claim_id=claim_id, evidence_id=evidence_id, relationship=relation))
 
     def list_claims(self) -> tuple[Claim, ...]:
-        return tuple(self._claims.values())
+        return tuple(sorted(self._claims.values(), key=lambda claim: (claim.created_at, claim.id)))
 
     def list_citations_for_claim(self, claim_id: str) -> tuple[Citation, ...]:
         return tuple(c for c in self._citations if c.claim_id == claim_id)

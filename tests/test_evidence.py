@@ -40,3 +40,39 @@ def test_invalid_evidence_reliability_rejected() -> None:
         assert "reliability" in str(exc)
     else:
         raise AssertionError("Expected EvidenceError")
+
+
+def test_duplicate_claim_evidence_link_is_rejected() -> None:
+    store = EvidenceStore()
+    store.add_evidence(EvidenceItem("ev-1", "A", "A", "S1", "paper", 0.9))
+    store.add_claim(Claim(id="cl-1", text="Claim"))
+    store.link_claim("cl-1", "ev-1", "support")
+
+    try:
+        store.link_claim("cl-1", "ev-1", "contradict")
+    except EvidenceError as exc:
+        assert "Duplicate" in str(exc)
+    else:
+        raise AssertionError("Expected EvidenceError")
+
+
+def test_duplicate_evidence_and_claim_ids_are_rejected() -> None:
+    store = EvidenceStore()
+    item = EvidenceItem("ev-1", "A", "A", "S1", "paper", 0.9)
+    store.add_evidence(item)
+
+    try:
+        store.add_evidence(item)
+    except EvidenceError as exc:
+        assert "already exists" in str(exc)
+    else:
+        raise AssertionError("Expected EvidenceError")
+
+    claim = Claim(id="cl-1", text="Claim")
+    store.add_claim(claim)
+    try:
+        store.add_claim(claim)
+    except EvidenceError as exc:
+        assert "already exists" in str(exc)
+    else:
+        raise AssertionError("Expected EvidenceError")

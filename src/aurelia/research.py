@@ -114,13 +114,20 @@ class ResearchEngine:
 
         facts: list[str] = []
         hypotheses: list[str] = []
+        cited_evidence_ids: set[str] = set()
         for assessment in assessments:
+            cited_evidence_ids.update(assessment.supported_by)
+            cited_evidence_ids.update(assessment.contradicted_by)
             if assessment.status == "supported" and assessment.confidence >= 0.7:
                 facts.append(assessment.claim.text)
             else:
                 hypotheses.append(assessment.claim.text)
 
-        if not assessments:
+        for item in evidence:
+            if item.id not in cited_evidence_ids:
+                hypotheses.append(f"Provisional observation from {item.source}: {item.title}")
+
+        if not facts and not assessments:
             hypotheses.append(f"Insufficient claim evidence to establish facts for: {plan.question.text}")
 
         open_questions = self._open_questions(plan, evidence, assessments)
@@ -142,9 +149,28 @@ class ResearchEngine:
         )
 
     def _claim_confidence(self, supported: tuple[str, ...], contradicted: tuple[str, ...]) -> float:
-        support_score = min(len(supported), 3) * 0.3
-        contradiction_penalty = min(len(contradicted), 3) * 0.25
-        return round(max(0.0, min(1.0, support_score - contradiction_penalty + 0.4)), 3)
+        support_reliability = self._average_reliability(supported)
+        contradiction_reliability = self._average_reliability(contradicted)
+        support_score = min(len(supported), 3) / 3.0
+        contradiction_score = min(len(contradicted), 3) / 3.0
+        confidence = (
+            0.2
+            + (0.45 * support_reliability)
+            + (0.25 * support_score)
+            - (0.30 * contradiction_reliability)
+            - (0.20 * contradiction_score)
+        )
+        return round(max(0.0, min(1.0, confidence)), 3)
+
+    def _average_reliability(self, evidence_ids: tuple[str, ...]) -> float:
+        if not evidence_ids:
+            return 0.0
+        reliabilities = [
+            evidence.reliability
+            for evidence_id in evidence_ids
+            if (evidence := self.evidence_store.get_evidence(evidence_id)) is not None
+        ]
+        return sum(reliabilities) / len(reliabilities) if reliabilities else 0.0
 
     def _open_questions(
         self,
@@ -159,5 +185,8 @@ class ResearchEngine:
             questions.append("How can contested claims be resolved with stronger sources?")
         if not questions:
             questions.append("Which assumptions should be stress-tested next?")
-        questions.append(f"Which task from plan remains least supported? ({plan.tasks[-1].id})")
+        if plan.tasks:
+            questions.append(f"Which task from plan remains least supported? ({plan.tasks[-1].id})")
+        else:
+            questions.append("Which research task should be defined next?")
         return tuple(questions)
